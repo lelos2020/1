@@ -1,0 +1,182 @@
+Paste this into your coding assistant on your corporate laptop:
+
+Build a complete, working UK macroeconomic dashboard called **UK Macro Flex** in the current workspace.
+
+Use these references:
+- Original project description: https://fdicostanzo.com/projects/uk_macro
+- Original monitor: https://ukmacro.fdicostanzo.com/
+- Flexible version to recreate: https://uk-macro-flex-monitor.observantgnome1.chatgpt.site
+
+Inspect the available references before implementing. If any are inaccessible, proceed using the specification below. Build the actual application, not just a plan or visual mockup.
+
+## Purpose
+
+Create a database-free monitor of UK economic data from the Office for National Statistics, Bank of England, and Office for Budget Responsibility.
+
+Normalize unlike source feeds into a shared format. Load each series independently so one failure cannot block the dashboard. Never substitute invented data for unavailable official data.
+
+## Design
+
+Create a polished, responsive dashboard with:
+- An off-white background, white cards, dark charcoal text, muted green accents, thin borders, and subtle rounded corners.
+- DM Sans for interface text and IBM Plex Mono for values, timestamps, and metadata. Include sensible local fallback fonts.
+- A header with a small bar-chart mark, “UK Macro” branding, a “FLEX” badge, glossary, theme toggle, and export control.
+- A desktop left sidebar containing Overview, My watchlist, Saved views, economic categories, and source health.
+- A main heading, “The economic overview.”, followed by “Your lens on the UK economy. Make it your own.”
+- A source-health strip, refresh control, source tabs, search, date-range controls, sorting, grid/table toggle, and Save view.
+- A responsive grid of compact indicator cards.
+- A right-hand context rail on wide screens with links to official release calendars and Bloomberg UK.
+- A compact, usable mobile layout and a complete dark theme.
+
+Each card should show its source, frequency, indicator name, latest value and unit, observation period, change from the previous observation where meaningful, a sparkline, watchlist control, Explore series action, and Compare checkbox.
+
+## Data coverage
+
+Include these 24 series.
+
+ONS series, expressed as series code / dataset:
+1. CPI inflation — D7G7 / MM23
+2. CPIH inflation — L55O / MM23
+3. Core CPIH — L5LQ / MM23
+4. Services inflation — D7NN / MM23
+5. Unemployment rate — MGSX / LMS
+6. Employment — MGRZ / LMS
+7. Pay growth — KAI9 / LMS
+8. GDP growth — IHYQ / QNA
+9. Services output — S2KU / IOS1
+10. Manufacturing output — K22A / DIOP
+11. Retail sales — J5EK / DRSI
+12. Exports — IKBH / MRET
+13. Imports — IKBI / MRET
+14. Business investment — NPEL / CXNV
+15. Unit labour costs — LNNL / UCST
+16. Public net borrowing — J5II / PUSF
+
+Bank of England:
+17. Bank Rate — IUDBEDR
+18. Five-year nominal zero-coupon gilt yield — IUMSNZC
+19. Ten-year nominal zero-coupon gilt yield — IUMMNZC
+20. Quoted two-year fixed mortgage rate at 75% loan-to-value — IUMBV34
+
+OBR:
+21. Public sector net borrowing forecast, £ billions
+22. Public sector net debt forecast, % of GDP, including the Bank of England
+23. Real GDP growth forecast
+24. CPI inflation forecast
+
+Verify series descriptions, units, frequencies, sign conventions, and seasonal-adjustment metadata against official sources before labelling them. In particular, distinguish rolling three-month labour-market estimates from single-month observations.
+
+## Source adapters
+
+Perform external requests on the server.
+
+ONS:
+- Do not use the retired legacy ONS API.
+- Use the current official published-series JSON endpoints, generally the canonical series page followed by `/data`.
+- Read publication metadata and select the correct monthly, quarterly, or annual observations.
+- Parse dates explicitly in UTC. Do not let local timezone or daylight-saving conversions shift monthly dates into the previous month.
+
+Bank of England:
+- Read official database CSV downloads.
+- The download pattern currently includes `_iadb-fromshowcolumns.asp` with `csv.x=1`, `Datefrom`, `Dateto=now`, `SeriesCodes`, `CSVF=TN`, `UsingCodes=Y`, `VPD=Y`, and `VFD=N`.
+- Verify that responses are CSV rather than an HTML error page.
+- Preserve the actual observation frequency.
+
+OBR:
+- Discover the newest official Economic and fiscal outlook publication.
+- Parse its official published HTML forecast tables, using explicit checks to distinguish forecast levels from changes between forecast vintages.
+- Published rounded values are acceptable. Identify the publication and link to it.
+- Show the current fiscal-year forecast on the card and the remaining future path in the chart.
+- Clearly distinguish fiscal years, calendar years, outturns, and forecasts. Do not present the final forecast year as the current forecast.
+- If the publication format changes and safe parsing fails, show a source error rather than guessing.
+
+Use a normalized format resembling:
+- id, name, source, category, unit, frequency, definition, sourceUrl
+- publicationDate, retrievedAt, status, error
+- observations: [{ date, label, value, kind }]
+
+Keep publication dates, observation periods, and retrieval timestamps separate.
+
+## Flexibility and interactions
+
+Implement all of these:
+- Filter by source: All, ONS, Bank of England, OBR, Custom.
+- Filter by economic category: Prices, Labour, Activity, Markets, Fiscal.
+- Search indicators.
+- Sort by default order, name, or source.
+- Choose the last 12, 36, or 60 observations, all history, or custom start/end dates.
+- Switch between card and table views.
+- Customize which indicators appear on the board.
+- Pin indicators to a watchlist.
+- Save named views, reopen them, and delete them.
+- Persist preferences and saved views in browser local storage.
+- Show a clear empty state when filters produce no results.
+- Open a series detail dialog containing its definition, units, source link, publication and retrieval metadata, chart, observation table, refresh control, and exports.
+- Compare two or more selected series on an actual-date axis, rebased to 100 at each series’ first observation in the selected window. Retain native frequencies and exclude zero-base series with a clear explanation.
+- Import custom CSV series with `date,value` columns, a user-entered name and unit, and robust validation. Store imported data locally.
+- Support restoring exported offline snapshots.
+
+Every visible control must work. Use accessible labels, keyboard navigation, visible focus states, and properly managed dialogs.
+
+## Reliability and caching
+
+- Fetch series independently and expose per-source health.
+- Cache successful server responses for roughly one hour and coalesce duplicate in-flight requests.
+- Allow manual refresh to bypass normal response caching.
+- Retain successful observations in browser local storage.
+- If a request fails, keep any saved observations visible and clearly mark them as an offline snapshot.
+- If no observations exist, show Unavailable and a useful retry action.
+- Apply request timeouts and validate upstream response shapes.
+- Do not require a database.
+- Do not add background scheduling or automatic refresh while the application is closed.
+
+## Exports
+
+Implement:
+- CSV export for visible indicators and individual series.
+- JSON offline snapshots with a format version, export timestamp, observations, units, and provenance.
+- PNG export of the visible board and individual series.
+- Include observation periods, source identities, and timestamps in exported output.
+- Exports must contain real data and produce usable files.
+
+## Context rail and glossary
+
+Include definitions for every indicator.
+
+Link to:
+- ONS release calendar
+- Bank of England monetary-policy decisions
+- OBR Economic and fiscal outlook publications
+- Bloomberg UK
+
+A live Bloomberg headline stream is not required. Do not invent headlines or reproduce articles.
+
+Include a discreet attribution link to the original UK Macro Monitor project.
+
+## Technical implementation
+
+Recreate this as a self-contained application:
+- Prefer a browser frontend with HTML, CSS, and JavaScript, served by an ES-module server.
+- A Cloudflare Worker-compatible `fetch` handler is suitable for deployment.
+- Include a local Node.js server so it runs without Cloudflare.
+- Use TypeScript or a framework if the existing workspace calls for it, but keep the application straightforward and maintainable.
+- Avoid mandatory external databases, paid API keys, or proprietary hosting integrations.
+- Provide package scripts and clear setup instructions.
+- Keep dependencies minimal. Follow the corporate environment’s approved package registry, proxy, certificate, and installation policies; never disable security controls.
+- Do not make deployment depend on ChatGPT Sites.
+
+## Access and delivery
+
+The dashboard itself must not require sign-in. Do not add authentication unless I explicitly request it.
+
+Create the application locally first. Do not publish externally or upload corporate files without my explicit instruction.
+
+Provide:
+1. The complete editable source.
+2. A README with prerequisites, exact local run commands, architecture, source details, caching behavior, and deployment options.
+3. A source archive if practical.
+4. A brief account of what was verified and any remaining limitations.
+
+Verify every adapter against official responses, including units and date parsing. Test filtering, saved views, watchlists, comparisons, CSV import, snapshot restore, and exports. Inspect the desktop and mobile layouts in a browser if browser tools are available. Report unavailable checks honestly.
+
+Proceed with reasonable implementation decisions and finish the working application end to end. Ask questions only when a missing answer blocks meaningful progress.
